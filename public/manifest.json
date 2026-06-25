@@ -1,0 +1,23 @@
+{
+    "name": "Sistem Deteksi Sampah",
+    "short_name": "Bank Sampah",
+    "start_url": "/pwa/home",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#4CAF50",
+    "orientation": "portrait",
+    "icons": [
+      {
+        "src": "/icons/bank-sampah.png",
+        "type": "image/png",
+        "sizes": "192x192",
+        "purpose":"any maskable"
+      },
+      {
+        "src": "/icons/bank-sampah.png",
+        "type": "image/png",
+        "sizes": "512x512",
+        "purpose":"any maskable"
+      }
+    ]
+  }
