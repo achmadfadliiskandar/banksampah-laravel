@@ -196,10 +196,10 @@ class TransaksiController extends Controller
         $user = $setoran->user; // Relasi ke model User
     
         // 2. VALIDASI 1: Cek apakah sudah lewat 2 hari (48 jam)
-        // Carbon::parse akan membandingkan waktu created_at dengan waktu sekarang
-        if (Carbon::parse($setoran->created_at)->diffInDays(Carbon::now()) >= 2) {
-            return redirect()->back()->with('error', 'Transaksi gagal dibatalkan! Batas waktu pembatalan maksimal 2 hari.');
-        }
+        // // Carbon::parse akan membandingkan waktu created_at dengan waktu sekarang
+        // if (Carbon::parse($setoran->created_at)->diffInDays(Carbon::now()) >= 2) {
+        //     return redirect()->back()->with('error', 'Transaksi gagal dibatalkan! Batas waktu pembatalan maksimal 2 hari.');
+        // }
 
         // Jika statusnya sudah 'success' DAN sudah lewat 2 hari, BARULAH dilarang hapus
         if ($setoran->status == 'success' && Carbon::parse($setoran->created_at)->diffInDays(Carbon::now()) >= 2) {
