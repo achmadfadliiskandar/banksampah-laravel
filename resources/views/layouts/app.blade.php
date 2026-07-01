@@ -106,9 +106,26 @@
 <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
 
+<script src="https://cdn.datatables.net/2.3.8/js/dataTables.js"></script>
+<script src="https://cdn.datatables.net/2.3.8/js/dataTables.bootstrap5.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 <script>
+    new DataTable('#tabel', {
+        paging: false,
+        // lengthChange: false, ❌ DIHILANGKAN: Hapus dropdown jumlah data (10, 25, 50)
+        // searching: true,  ❌ DIHILANGKAN: Hapus kotak pencarian bawaan biar gak tabrakan dengan form filter tanggal
+        ordering: true,
+        info: true,
+        autoWidth: true,
+        responsive: true,
+        language: {
+            processing: "Sedang memproses...",
+            info: "Menampilkan _TOTAL_ baris data laporan hasil filter", // Teks disesuaikan agar lebih kontekstual skripsi
+            infoEmpty: "Tidak ada data laporan pada periode ini",
+            infoFiltered: "(disaring dari _MAX_ total data murni)"
+        }
+    });
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
             // Tambahkan parameter unik agar tidak kena cache lama
@@ -124,4 +141,5 @@
         });
     }
 </script>
+
 </html>

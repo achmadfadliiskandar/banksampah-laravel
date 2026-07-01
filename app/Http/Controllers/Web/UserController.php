@@ -14,7 +14,7 @@ class UserController extends Controller
     public function index()
     {
         // Ambil semua user dengan role nasabah
-        $nasabah = User::where('role', 'nasabah')->latest()->get();
+        $nasabah = User::where('role', 'nasabah')->latest()->paginate(5);
         return view('users.index', compact('nasabah'));
     }
 

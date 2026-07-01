@@ -33,7 +33,7 @@
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0" id="tabel">
                     <thead class="table-light">
                         <tr>
                             <th class="ps-4" width="150">Kode</th>
@@ -193,6 +193,9 @@
                         @endforeach
                     </tbody>
                 </table>
+                <div class="d-flex justify-content-end me-3 mt-3">
+                    {{ $nasabah->links('pagination::bootstrap-5') }}
+                </div>
             </div>
         </div>
     </div>

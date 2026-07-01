@@ -34,8 +34,9 @@ Route::middleware('auth')->group(function () {
     Route::middleware('checkRole:admin')->group(function(){
         // dashboard
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard/cetak-pdf', [DashboardController::class, 'cetakPdf'])->name('dashboard.cetakPdf');
         Route::get('/dashboard/detail/{tipe}', [DashboardController::class, 'detail'])->name('dashboard.detail');
-        Route::get('/download-laporan', [DashboardController::class, 'downloadLaporan'])->name('download-laporan');
+        // Route::get('/download-laporan', [DashboardController::class, 'downloadLaporan'])->name('download-laporan');
         // CRUD Kategori
         Route::get('/kategori', [KategoriController::class, 'index'])->name('kategori.index');
         Route::post('/kategori', [KategoriController::class, 'store'])->name('kategori.store');

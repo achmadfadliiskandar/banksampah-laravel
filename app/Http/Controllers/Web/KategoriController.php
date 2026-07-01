@@ -12,7 +12,7 @@ class KategoriController extends Controller
     // 1. TAMPILKAN SEMUA DATA
     public function index()
     {
-        $kategori = KategoriSampah::latest()->get();
+        $kategori = KategoriSampah::latest()->paginate(5);
         return view('kategori.index', compact('kategori'));
     }
 

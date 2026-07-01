@@ -154,39 +154,71 @@ class DashboardController extends Controller
 
         return back()->with('success', 'Password Admin berhasil diperbarui!');
     }
-    public function downloadLaporan()
+    public function cetakPdf(Request $request)
     {
-        // 1. Ambil data transaksi bulan berjalan yang sudah sukses terverifikasi
-        $bulanIni = Carbon::now()->month;
-        $tahunIni = Carbon::now()->year;
+        $startDate = $request->input('start_date', now()->subDays(7)->format('Y-m-d'));
+        $endDate = $request->input('end_date', now()->format('Y-m-d'));
 
-        $setoranSukses = Setoran::with(['user', 'details.kategori'])
-            ->where('status', 'success')
-            ->whereMonth('created_at', $bulanIni)
-            ->whereYear('created_at', $tahunIni)
+        $fullStart = $startDate . ' 00:00:00';
+        $fullEnd = $endDate . ' 23:59:59';
+
+        // Query gabungan untuk menarik data detail, induk transaksi, nama nasabah, dan nama jenis sampah
+        $setoran = DetailSetoran::join('setorans', 'detail_setorans.setoran_id', '=', 'setorans.id')
+            ->join('users', 'setorans.user_id', '=', 'users.id')
+            ->join('kategori_sampahs', 'detail_setorans.kategori_id', '=', 'kategori_sampahs.id')
+            ->select(
+                'detail_setorans.*', 
+                'kategori_sampahs.nama_jenis', 
+                'kategori_sampahs.harga_per_kg',
+                'setorans.kode_transaksi', 
+                'users.name as user_name'
+            )
+            ->whereBetween('detail_setorans.created_at', [$fullStart, $fullEnd])
+            ->orderBy('detail_setorans.created_at', 'desc')
             ->get();
 
-        // 2. Hitung total ringkasan untuk performa dashboard laporan
-        $totalVolume = $setoranSukses->sum('total_berat');
-        $totalUang = $setoranSukses->sum('total_harga');
-        
-        // 3. Ambil data master kategori untuk tabel rincian manifes
-        $kategori = KategoriSampah::all();
+        // Hitung akumulasi total berdasarkan rentang filter tanggal
+        $totalSampah = $setoran->sum('berat');
+        $totalTabungan = $setoran->sum(function($item) {
+            return $item->berat * $item->harga_per_kg;
+        });
 
-        // 4. Bungkus data ke dalam array untuk dikirim ke template cetak
-        $data = [
-            'laporan_bulan' => Carbon::now()->translatedFormat('F Y'),
-            'tanggal_cetak' => Carbon::now()->translatedFormat('d F Y'),
-            'setoran'       => $setoranSukses,
-            'total_volume'  => $totalVolume,
-            'total_uang'    => $totalUang,
-            'kategori'      => $kategori
-        ];
-
-        // 5. Load view khusus cetak cetakan pdf dan set ukuran kertas ke A4
-        $pdf = Pdf::loadView('cetak_laporan', $data)->setPaper('a4', 'portrait');
-        
-        // 6. Alirkan file ke browser untuk otomatis terunduh
-        return $pdf->download('Laporan_Bulanan_Bank_Sampah_' . Carbon::now()->format('Y_m') . '.pdf');
+        return \Pdf::loadView('export_laporan', compact('setoran', 'totalSampah', 'totalTabungan', 'startDate', 'endDate'))
+            ->stream('Laporan-Bank-Sampah.pdf');
     }
+    // public function downloadLaporan()
+    // {
+    //     // 1. Ambil data transaksi bulan berjalan yang sudah sukses terverifikasi
+    //     $bulanIni = Carbon::now()->month;
+    //     $tahunIni = Carbon::now()->year;
+
+    //     $setoranSukses = Setoran::with(['user', 'details.kategori'])
+    //         ->where('status', 'success')
+    //         ->whereMonth('created_at', $bulanIni)
+    //         ->whereYear('created_at', $tahunIni)
+    //         ->get();
+
+    //     // 2. Hitung total ringkasan untuk performa dashboard laporan
+    //     $totalVolume = $setoranSukses->sum('total_berat');
+    //     $totalUang = $setoranSukses->sum('total_harga');
+        
+    //     // 3. Ambil data master kategori untuk tabel rincian manifes
+    //     $kategori = KategoriSampah::all();
+
+    //     // 4. Bungkus data ke dalam array untuk dikirim ke template cetak
+    //     $data = [
+    //         'laporan_bulan' => Carbon::now()->translatedFormat('F Y'),
+    //         'tanggal_cetak' => Carbon::now()->translatedFormat('d F Y'),
+    //         'setoran'       => $setoranSukses,
+    //         'total_volume'  => $totalVolume,
+    //         'total_uang'    => $totalUang,
+    //         'kategori'      => $kategori
+    //     ];
+
+    //     // 5. Load view khusus cetak cetakan pdf dan set ukuran kertas ke A4
+    //     $pdf = Pdf::loadView('cetak_laporan', $data)->setPaper('a4', 'portrait');
+        
+    //     // 6. Alirkan file ke browser untuk otomatis terunduh
+    //     return $pdf->download('Laporan_Bulanan_Bank_Sampah_' . Carbon::now()->format('Y_m') . '.pdf');
+    // }
 }

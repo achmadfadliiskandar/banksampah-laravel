@@ -18,7 +18,7 @@ class TransaksiController extends Controller
     public function index()
     {
         // Eager load relasi berjenjang: Setoran -> Details -> Kategori
-        $setoran = Setoran::with(['user', 'details.kategori'])->latest()->get();
+        $setoran = Setoran::with(['user', 'details.kategori'])->latest()->paginate(5);
         $nasabah = User::where('role', 'nasabah')->get();
         $kategori = KategoriSampah::all();
 
