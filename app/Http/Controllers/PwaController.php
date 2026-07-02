@@ -141,7 +141,7 @@ class PwaController extends Controller
     }
 
     // ==========================================
-    // FUNGSI 2: EKSEKUSI SIMPAN MASAL (MENJADI 1 SESI)
+    // FUNGSI 2: EKSEKUSI SIMPAN KESELURUHANYA (MENJADI 1 SESI)
     // ==========================================
     public function simpanSetoran(Request $request)
     {
@@ -191,18 +191,7 @@ class PwaController extends Controller
             $setoran->total_harga = $total_harga_sesi;
             $setoran->total_berat = $total_berat_sesi;
             $setoran->save();
-
-            // =============================================================
-            // 🔥 BARU: UPDATE SALDO TABUNGAN NASABAH SECARA OTOMATIS 🔥
-            // =============================================================
-            // Ambil data user/nasabah yang saat ini sedang melakukan scan (login)
-            $user = Auth::user(); 
-            
-            // Tambahkan saldo lama dengan total harga dari sesi scan ini
-            // (Catatan: Ganti 'saldo' sesuai dengan nama kolom saldo di tabel users milikmu, misal 'saldo_tabungan')
-            $user->saldo = $user->saldo + $total_harga_sesi; 
-            $user->save();
-            // =============================================================
+            // lakukan commit
 
             DB::commit();
             return response()->json(['success' => true]);

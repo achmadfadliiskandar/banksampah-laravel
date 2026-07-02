@@ -7,6 +7,11 @@
                 <h3 class="fw-bold text-success">Input Setoran Sampah</h3>
                 <p class="text-muted">Catat setoran nasabah via manual/AI. Transaksi pending wajib diverifikasi fisik dalam 2
                     hari atau dihapus jika fiktif.</p>
+                    <div class="alert alert-warning p-2 mb-3" role="alert">
+                        <marquee behavior="scroll" direction="left" scrollamount="6" class="fw-bold text-dark m-0">
+                            📢 PEMBERITAHUAN ADMIN: Mohon lakukan verifikasi fisik sampah secara teliti sebelum mengubah status menjadi SUCCESS
+                        </marquee>
+                    </div>
             </div>
         </div>
 
