@@ -75,7 +75,7 @@ class TransaksiController extends Controller
             ]);
 
             // 4. Update Saldo Nasabah
-            User::find($request->user_id)->increment('saldo', $grandTotalHarga);
+            // User::find($request->user_id)->increment('saldo', $grandTotalHarga);
 
             return back()->with('success', 'Transaksi berhasil!');
         });
@@ -169,19 +169,26 @@ class TransaksiController extends Controller
         // 4. Mulai transaksi database agar proses penguncian aman
         DB::beginTransaction();
         try {
-            // Ubah status transaksi menjadi sesuai kiriman form (success)
+            // Ubah status transaksi menjadi sesuai kiriman form (success / cancelled)
             $setoran->status = $request->status;
             $setoran->save();
 
+            // 🔥 MODIFIKASI BARU: Jika admin memvalidasi status menjadi 'success'
+            if ($request->status == 'success') {
+                // Cari user/nasabah pemilik transaksi ini, lalu tambahkan saldonya
+                $nasabah = User::findOrFail($setoran->user_id);
+                $nasabah->increment('saldo', $setoran->total_harga);
+            }
+
             // Note Akademis Skripsi: 
-            // Karena saldo nasabah sudah ditambahkan secara otomatis pada saat scan di PWA (simpanSetoran),
-            // maka di fungsi ini admin murni bertugas mengunci status menjadi 'success'.
-            // Perubahan status menjadi 'success' ini yang akan mengaktifkan aturan perlindungan saldo 2 hari.
+            // Saldo nasabah baru akan bertambah secara rill ketika Admin Loket 
+            // menekan tombol validasi sukses setelah fisik sampah diverifikasi sesuai kriteria.
+            // Ini menerapkan prinsip sinkronisasi data fisik dan data digital (Cyber-Physical System).
 
             DB::commit();
 
             // Kembalikan ke halaman sebelumnya dengan notifikasi sukses ala Bootstrap
-            return redirect()->back()->with('success', 'Fisik sampah berhasil diverifikasi! Status transaksi resmi: ' . strtoupper($request->status));
+            return redirect()->back()->with('success', 'Fisik sampah berhasil diverifikasi dan saldo nasabah telah ditambahkan! Status transaksi resmi: ' . strtoupper($request->status));
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -191,42 +198,44 @@ class TransaksiController extends Controller
 
     public function destroy($id)
     {
-        // 1. Cari data setoran/transaksi
+        // 1. Cari data setoran/transaksi beserta relasi user
         $setoran = \App\Models\Setoran::findOrFail($id);
-        $user = $setoran->user; // Relasi ke model User
-    
-        // 2. VALIDASI 1: Cek apakah sudah lewat 2 hari (48 jam)
-        // // Carbon::parse akan membandingkan waktu created_at dengan waktu sekarang
-        // if (Carbon::parse($setoran->created_at)->diffInDays(Carbon::now()) >= 2) {
-        //     return redirect()->back()->with('error', 'Transaksi gagal dibatalkan! Batas waktu pembatalan maksimal 2 hari.');
-        // }
+        $user = $setoran->user; 
 
-        // Jika statusnya sudah 'success' DAN sudah lewat 2 hari, BARULAH dilarang hapus
-        if ($setoran->status == 'success' && Carbon::parse($setoran->created_at)->diffInDays(Carbon::now()) >= 2) {
+        // 2. VALIDASI AKADEMIS: Cek aturan pembatalan 2 hari (Hanya berlaku untuk yang sudah SUCCESS)
+        if ($setoran->status == 'success' && \Carbon\Carbon::parse($setoran->created_at)->diffInDays(\Carbon\Carbon::now()) >= 2) {
             return redirect()->back()->with('error', 'Transaksi yang sudah sukses lebih dari 2 hari tidak bisa dibatalkan!');
         }
-    
-        // 3. VALIDASI 2: Cek apakah uangnya sudah diambil / saldo tidak mencukupi
-        // Jika saldo user saat ini lebih kecil dari nominal yang mau dibatalkan, 
-        // artinya duit di tabungannya sudah ditarik (diambil).
-        if ($user->saldo < $setoran->total_harga) {
-            return redirect()->back()->with('error', 'Transaksi gagal dibatalkan! Saldo nasabah sudah ditarik atau tidak mencukupi untuk pemotongan.');
+
+        // 3. VALIDASI SALDO: Hanya dicek jika statusnya sudah 'success'
+        // Jika status masih pending, saldo nasabah belum bertambah, jadi tidak perlu cek kecukupan saldo.
+        if ($setoran->status == 'success' && $user->saldo < $setoran->total_harga) {
+            return redirect()->back()->with('error', 'Transaksi gagal dibatalkan! Saldo nasabah sudah ditarik atau tidak mencukupi untuk pemotongan kembali.');
         }
-    
+
         DB::beginTransaction();
         try {
-            // 4. Proses Kurangi Saldo Nasabah Kembali karena transaksi batal
-            $user->saldo = $user->saldo - $setoran->total_harga;
-            $user->save();
-    
+            // 🔥 POIN KUNCI: Cek status transaksi sebelum menghapus
+            if ($setoran->status == 'success') {
+                // Jika sudah sukses, kurangi kembali saldo nasabah karena transaksi dibatalkan
+                $user->saldo = $user->saldo - $setoran->total_harga;
+                $user->save();
+            } 
+            // Jika statusnya 'pending', blok IF di atas dilewati (saldo user tetap utuh tidak berkurang)
+
             // 5. Hapus detail dan data induk transaksi
-            // Jika di database kamu pasang onDelete('cascade') di relasi migrasi, cukup hapus $setoran saja
-            $setoran->details()->delete(); // Hapus anak tabel jika diperlukan manual
+            $setoran->details()->delete(); 
             $setoran->delete();
-    
+
             DB::commit();
-            return redirect()->back()->with('success', 'Transaksi berhasil dibatalkan dan saldo nasabah otomatis dikurangi.');
-    
+
+            // Berikan notifikasi dinamis sesuai kondisi status sebelumnya
+            $pesanSukes = $setoran->status == 'success' 
+                ? 'Transaksi sukses dibatalkan dan saldo nasabah otomatis dikurangi kembali.' 
+                : 'Transaksi pending berhasil dihapus tanpa mengubah saldo nasabah.';
+
+            return redirect()->back()->with('success', $pesanSukes);
+
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Terjadi kesalahan sistem: ' . $e->getMessage());
