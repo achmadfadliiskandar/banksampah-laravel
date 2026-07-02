@@ -60,13 +60,25 @@
                     
                     {{-- 🔥 6. BERIKAN ID UNTUK TIAP TH DI TFOOT AGAR BISA DIEDIT DINAMIS OLEH JS --}}
                     <tfoot class="table-light">
-                        <tr>
+                        <tr class="align-middle">
                             <th class="text-dark fw-bold" id="total-nasabah-id">Total Nasabah : {{ $dataList->count() }}</th>
                             <th class="text-end fw-bold">Total Rekapitulasi Keseluruhan:</th>
                             <th class="text-dark fw-bold" id="total-berat-id">0,0 Kg</th>
                             <th class="text-dark fw-bold" id="total-nominal-id">Rp 0</th>
                             <th class="text-danger fw-bold" id="total-penarikan-id">Rp 0</th>
                             <th class="text-success fw-bold" id="total-saldo-id">Rp 0</th>
+                        </tr>
+                    
+                        <tr class="table-warning align-middle" style="font-size: 0.9rem;">
+                            <th colspan="2" class="text-end text-muted fw-bold">Proyeksi Nilai Jual ke Pengepul (+20%):</th>
+                            <th id="total-berat-pengepul-id" class="text-muted fw-bold">0,0 Kg</th> 
+                            <th colspan="3" class="text-start text-dark fw-bold" id="total-jual-pengepul-id">Rp 0</th>
+                        </tr>
+                    
+                        <tr class="table-success align-middle" style="font-size: 0.95rem;">
+                            <th colspan="2" class="text-end text-success fw-bold">Estimasi Profit Bersih Bank Sampah:</th>
+                            <th></th> 
+                            <th colspan="3" class="text-start text-success fw-bold" id="total-profit-internal-id">Rp 0</th>
                         </tr>
                     </tfoot>
 
@@ -171,15 +183,46 @@
             });
 
             // 🔥 SUNTIKKAN NILAI BARU KE TFOOT (DENGAN PENGUNCI NOL FORMAT AKUNTANSI)
-            document.getElementById('total-nasabah-id').innerText = "Total Nasabah : " + kumpulanNamaUnik.size;
+            if (document.getElementById('total-nasabah-id')) {
+                document.getElementById('total-nasabah-id').innerText = "Total Nasabah : " + kumpulanNamaUnik.size;
+            }
             
             // Format Berat (Kg) balikkan dari titik ke koma desimal Indonesia
-            document.getElementById('total-berat-id').innerText = totalBerat.toFixed(1).replace('.', ',') + " Kg";
+            if (document.getElementById('total-berat-id')) {
+                document.getElementById('total-berat-id').innerText = totalBerat.toFixed(1).replace('.', ',') + " Kg";
+            }
             
             // Format Rupiah dibulatkan total tanpa angka sen desimal di belakang koma
-            document.getElementById('total-nominal-id').innerText = "Rp " + totalNominal.toLocaleString('id-ID', { maximumFractionDigits: 0 });
-            document.getElementById('total-penarikan-id').innerText = "Rp " + totalPenarikan.toLocaleString('id-ID', { maximumFractionDigits: 0 });
-            document.getElementById('total-saldo-id').innerText = "Rp " + totalSaldo.toLocaleString('id-ID', { maximumFractionDigits: 0 });
+            if (document.getElementById('total-nominal-id')) {
+                document.getElementById('total-nominal-id').innerText = "Rp " + totalNominal.toLocaleString('id-ID', { maximumFractionDigits: 0 });
+            }
+            if (document.getElementById('total-penarikan-id')) {
+                document.getElementById('total-penarikan-id').innerText = "Rp " + totalPenarikan.toLocaleString('id-ID', { maximumFractionDigits: 0 });
+            }
+            if (document.getElementById('total-saldo-id')) {
+                document.getElementById('total-saldo-id').innerText = "Rp " + totalSaldo.toLocaleString('id-ID', { maximumFractionDigits: 0 });
+            }
+
+            // =========================================================================
+            // 🔥 MODIFIKASI INTERNAL BANK SAMPAH: HITUNG RUMUS DINAMIS (+20% & Profit)
+            // =========================================================================
+            
+            // 1. Sinkronkan total volume berat ke baris proyeksi pengepul
+            if (document.getElementById('total-berat-pengepul-id')) {
+                document.getElementById('total-berat-pengepul-id').innerText = totalBerat.toFixed(1).replace('.', ',') + " Kg";
+            }
+
+            // 2. Rumus Proyeksi Nilai Jual ke Pengepul (+20% dari total nominal nasabah)
+            if (document.getElementById('total-jual-pengepul-id')) {
+                var totalJualPengepul = totalNominal * 1.2;
+                document.getElementById('total-jual-pengepul-id').innerText = "Rp " + totalJualPengepul.toLocaleString('id-ID', { maximumFractionDigits: 0 });
+            }
+
+            // 3. Rumus Estimasi Profit Bersih Bank Sampah (20% dari total nominal nasabah)
+            if (document.getElementById('total-profit-internal-id')) {
+                var totalProfitBersih = totalNominal * 0.2;
+                document.getElementById('total-profit-internal-id').innerText = "Rp " + totalProfitBersih.toLocaleString('id-ID', { maximumFractionDigits: 0 });
+            }
         }
     });
 </script>
