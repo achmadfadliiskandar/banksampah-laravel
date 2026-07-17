@@ -75,69 +75,137 @@ class PwaController extends Controller
     // Fungsi 1: Kirim gambar ke Flask AI
     public function prosesScanAI(Request $request)
     {
-        $request->validate([
-            'image' => 'required|image|max:5120',
-        ], [
-            'image.required' => 'Gambar tidak boleh kosong.',
-            'image.image'    => 'File harus berupa gambar yang valid.',
-            'image.max'      => 'Ukuran gambar maksimal 5MB.',
-        ]);
+    $request->validate([
+        'image' => 'required|image|max:10240', // Batas upload dinaikkan ke 10MB agar kamera HP tidak tertolak di awal
+    ], [
+        'image.required' => 'Gambar tidak boleh kosong.',
+        'image.image'    => 'File harus berupa gambar yang valid.',
+        'image.max'      => 'Ukuran gambar maksimal 10MB.',
+    ]);
 
-        $flask_url = 'http://127.0.0.1:5000/predict';
+    $flask_url = env('URL_API_KLASIFIKASI'); 
 
-        try {
-            $foto = $request->file('image');
-            $response = Http::attach('image', file_get_contents($foto), $foto->getClientOriginalName())->post($flask_url);
-            
-            if ($response->serverError() || $response->clientError()) {
-                return response()->json(['error' => 'Gagal terhubung ke Server AI Flask. Pastikan server menyala.'], 500);
-            }
-            
-            $hasil_ai = $response->json();
-
-            if (!isset($hasil_ai['label'])) {
-                return response()->json(['error' => 'Format respons dari AI tidak sesuai standar.'], 500);
-            }
-
-            // 1. Tangkap hasil prediksi kata dari AI Flask (misal: 'trash' atau 'plastic')
-            $kategori_ai = strtolower($hasil_ai['label']);
-            
-            // Perhitungan akurasi desimal ke persen
-            $confidence_raw = $hasil_ai['confidence'] ?? 0;
-            $akurasi = ($confidence_raw <= 1) ? round($confidence_raw * 100, 2) : (float) $confidence_raw;
-
-            if ($akurasi < 50) {
-                return response()->json([
-                    'error' => "AI kurang yakin ({$akurasi}%). Mohon foto objek lebih dekat atau dengan pencahayaan terang."
-                ], 422);
-            }
-
-            // =========================================================================
-            // 🔥 LOGIKA DINAMIS: MENGAMBIL DATA LANGSUNG DARI DATABASE
-            // =========================================================================
-            // Kita filter kategori berdasarkan kolom label_ai hasil tebakan Flask
-            $KategoriCocok = \App\Models\KategoriSampah::where('kode_kategori', $kategori_ai)->get();
-
-            if ($KategoriCocok->isNotEmpty()) {
-                // Ambil data pertama sebagai rekomendasi default teratas untuk form
-                $default_pilihan = $KategoriCocok->first();
-
-                return response()->json([
-                    'id'      => $default_pilihan->id,
-                    'nama'    => $default_pilihan->nama_jenis,
-                    'harga'   => $default_pilihan->harga_per_kg, 
-                    'akurasi' => $akurasi,
-                    // Kirim semua record yang cocok ke frontend untuk diisi ke datalist/select
-                    // Jadi kalau 'trash', ketiga data organik/B3 akan terkirim semua secara dinamis!
-                    'opsi_pilihan' => $KategoriCocok 
-                ], 200);
-            }
-
-            return response()->json(['error' => "AI mendeteksi '{$kategori_ai}', tetapi label tersebut belum didaftarkan di database master."], 404);
-
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Terjadi kesalahan sistem internal: ' . $e->getMessage()], 500);
+    try {
+        $foto = $request->file('image');
+        
+        // =========================================================================
+        // 🛠️ PROSES KOMPRESI OTOMATIS MENGGUNAKAN GD LIBRARY PHP
+        // =========================================================================
+        $pathAsli = $foto->getRealPath();
+        
+        // Ciptakan resource gambar berdasarkan tipe filenya
+        $ekstensi = strtolower($foto->getClientOriginalExtension());
+        if ($ekstensi === 'png') {
+            $gambarSumber = imagecreatefrompng($pathAsli);
+        } else {
+            $gambarSumber = imagecreatefromjpeg($pathAsli); // default untuk jpg/jpeg
         }
+
+        // Dapatkan resolusi asli gambar
+        $lebarAsli = imagesx($gambarSumber);
+        $tinggiAsli = imagesy($gambarSumber);
+
+        // Target resolusi optimal untuk AI MobileNetV2 (maksimal lebar/tinggi 800px sudah sangat tajam)
+        $maxDimensi = 800;
+        if ($lebarAsli > $maxDimensi || $tinggiAsli > $maxDimensi) {
+            if ($lebarAsli > $tinggiAsli) {
+                $lebarBaru = $maxDimensi;
+                $tinggiBaru = floor($tinggiAsli * ($maxDimensi / $lebarAsli));
+            } else {
+                $tinggiBaru = $maxDimensi;
+                $lebarBaru = floor($lebarAsli * ($maxDimensi / $tinggiAsli));
+            }
+        } else {
+            $lebarBaru = $lebarAsli;
+            $tinggiBaru = $tinggiAsli;
+        }
+
+        // Buat kanvas gambar baru dengan resolusi yang sudah diperkecil
+        $gambarKompresi = imagecreatetruecolor($lebarBaru, $tinggiBaru);
+        
+        // Salin dan ubah ukuran gambar asli ke kanvas baru
+        imagecopyresampled($gambarKompresi, $gambarSumber, 0, 0, 0, 0, $lebarBaru, $tinggiBaru, $lebarAsli, $tinggiAsli);
+
+        // Simpan hasil kompresi ke dalam buffer memori sebagai JPEG dengan kualitas 60% (Sangat Ringan!)
+        ob_start();
+        imagejpeg($gambarKompresi, null, 60); 
+        $kontenGambarKompresi = ob_get_clean();
+
+        // Hapus resource gambar dari RAM server untuk mencegah memory leak
+        imagedestroy($gambarSumber);
+        imagedestroy($gambarKompresi);
+        // =========================================================================
+
+        // Mengirimkan BINER GAMBAR YANG SUDAH DIKOMPRES ke Hugging Face API
+        $response = Http::attach(
+            'image', 
+            $kontenGambarKompresi, // Menggunakan gambar yang sudah dikompres, bukan file_get_contents($foto) lagi
+            'scan_kompresi.jpg'
+        )->timeout(30)->post($flask_url);
+        
+        if ($response->serverError() || $response->clientError()) {
+            return response()->json(['error' => 'Gagal terhubung ke Server AI Hugging Face.'], 500);
+        }
+        
+        $hasil_ai = $response->json();
+
+        if (isset($hasil_ai['status']) && $hasil_ai['status'] === 'rejected') {
+            return response()->json([
+                'status'     => 'rejected',
+                'label'      => $hasil_ai['label'] ?? 'Objek Tidak Dikenali',
+                'confidence' => $hasil_ai['confidence'] ?? 0
+            ], 200);
+        }
+
+        if (!isset($hasil_ai['label'])) {
+            return response()->json(['error' => 'Format respons dari server AI tidak sesuai standar.'], 500);
+        }
+
+        $kategori_ai = strtolower($hasil_ai['label']);
+        $confidence_raw = $hasil_ai['confidence'] ?? 0;
+        $akurasi = ($confidence_raw <= 1) ? round($confidence_raw * 100, 2) : (float) $confidence_raw;
+
+        if ($akurasi < 20) {
+            return response()->json([
+                'status'     => 'rejected',
+                'label'      => 'Objek Kurang Jelas (' . $kategori_ai . ')',
+                'confidence' => $confidence_raw
+            ], 200);
+        }
+
+        $KategoriCocok = \App\Models\KategoriSampah::where('kode_kategori', $kategori_ai)->get();
+
+        if ($KategoriCocok->isNotEmpty()) {
+            $default_pilihan = $KategoriCocok->first();
+
+            // 🔥 PENTING: Kirim balik string Base64 dari gambar yang SUDAH DIKOMPRES ke frontend JS
+            // Agar saat dimasukkan ke keranjang dan di-submit massal, ukurannya tetap super ringan!
+            $base64Kompresi = 'data:image/jpeg;base64,' . base64_encode($kontenGambarKompresi);
+
+            return response()->json([
+                'status'       => 'success', 
+                'id'           => $default_pilihan->id,
+                'nama'         => $default_pilihan->nama_jenis, 
+                'harga'        => $default_pilihan->harga_per_kg, 
+                'akurasi'      => $akurasi,
+                'foto_kompres' => $base64Kompresi, // Kita selipkan ini untuk dibaca JavaScript
+                'opsi_pilihan' => $KategoriCocok 
+            ], 200);
+        }
+
+        return response()->json([
+            'status'     => 'rejected',
+            'label'      => "Kategori '{$kategori_ai}' Belum Terdaftar",
+            'confidence' => $confidence_raw
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error'           => 'Terjadi gangguan internal koneksi basis data.',
+            'pesan_eror_asli' => $e->getMessage(),
+            'baris_eror'      => $e->getLine()
+        ], 500);
+    }
     }
 
     // ==========================================
