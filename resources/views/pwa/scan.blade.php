@@ -23,6 +23,10 @@
             onclick="document.getElementById('camera-input').click()">
             <i class="bi bi-camera-fill me-2"></i>AMBIL FOTO SAMPAH
         </button>
+        <div>
+            <strong>Catatan Pemindaian:</strong><br>
+            Fitur ini masih dalam tahap uji coba (Beta). Harap foto 1 objek sampah secara jelas dan tidak gelap untuk hasil terbaik.
+        </div>
     </div>
 
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden">

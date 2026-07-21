@@ -7,11 +7,12 @@
                 <h3 class="fw-bold text-success">Input Setoran Sampah</h3>
                 <p class="text-muted">Catat setoran nasabah via manual/AI. Transaksi pending wajib diverifikasi fisik dalam 2
                     hari atau dihapus jika fiktif.</p>
-                    <div class="alert alert-warning p-2 mb-3" role="alert">
-                        <marquee behavior="scroll" direction="left" scrollamount="6" class="fw-bold text-dark m-0">
-                            📢 PEMBERITAHUAN ADMIN: Mohon lakukan verifikasi fisik sampah secara teliti sebelum mengubah status menjadi SUCCESS
-                        </marquee>
-                    </div>
+                <div class="alert alert-warning p-2 mb-3" role="alert">
+                    <marquee behavior="scroll" direction="left" scrollamount="6" class="fw-bold text-dark m-0">
+                        📢 PEMBERITAHUAN ADMIN: Mohon lakukan verifikasi fisik sampah secara teliti sebelum mengubah status
+                        menjadi SUCCESS
+                    </marquee>
+                </div>
             </div>
         </div>
 
@@ -320,6 +321,27 @@
                                         <strong>Waktu Rekam:</strong> <span
                                             class="text-secondary">{{ $s->created_at->format('d M Y, H:i') }}</span>
                                     </div>
+                                    {{-- buat untuk input tanggalnya --}}
+                                    <div class="col-md-12">
+                                        @if ($s->details->count() > 0 && \Carbon\Carbon::parse($s->created_at)->diffInDays(now()) <= 2)
+                                        <label for="tanggal_setoran_{{ $s->id }}"
+                                            class="form-label font-weight-bold d-block text-start">
+                                            <strong>Tanggal / Waktu Rekam:</strong>
+                                            <br>
+                                            *Bulan/Tanggal/Tahun
+                                        </label>
+                                            <input type="date" name="tanggal_setoran"
+                                                id="tanggal_setoran_{{ $s->id }}"
+                                                class="form-control form-control-sm d-inline-block w-auto"
+                                                value="{{ old('tanggal_setoran', $s->created_at->format('Y-m-d')) }}"
+                                                min="{{ $s->created_at->subDays(2)->format('Y-m-d') }}"
+                                                max="{{ now()->format('Y-m-d') }}" required>
+                                            <small class="d-block text-muted text-start text-md-end"
+                                                style="font-size: 11px;">
+                                                *Bisa diubah maksimal mundur 2 hari ke belakang
+                                            </small>
+                                        @endif
+                                    </div>
                                 </div>
                             </div>
 
@@ -341,9 +363,13 @@
                                                 <tr>
                                                     <td>
                                                         @if (!empty($detail->path_foto) && \Storage::disk('public')->exists($detail->path_foto))
-                                                            <img src="{{ asset('storage/' . $detail->path_foto) }}"
-                                                                class="img-thumbnail rounded shadow-sm"
-                                                                style="max-width: 75px; max-height: 75px; object-fit: cover;">
+                                                            <a href="{{ asset('storage/' . $detail->path_foto) }}"
+                                                                target="_blank" title="Klik untuk memperbesar">
+                                                                <img src="{{ asset('storage/' . $detail->path_foto) }}"
+                                                                    class="img-thumbnail rounded shadow-sm hover:opacity-80 transition cursor-pointer"
+                                                                    style="max-width: 75px; max-height: 75px; object-fit: cover;"
+                                                                    alt="Foto Sampah">
+                                                            </a>
                                                         @else
                                                             <div class="text-muted fst-italic"
                                                                 style="font-size: 0.75rem;">
@@ -416,7 +442,8 @@
                             <div class="text-success mb-3"><i class="fas fa-balance-scale fa-4x"></i></div>
                             <h5 class="fw-bold mb-2">Validasi Kode {{ $s->kode_transaksi }}</h5>
                             <p class="text-muted small">Pastikan fisik sampah yang dibawa nasabah
-                                <strong>{{ $s->user->name }}</strong> sudah sesuai dengan timbangan rincian di sistem.</p>
+                                <strong>{{ $s->user->name }}</strong> sudah sesuai dengan timbangan rincian di sistem.
+                            </p>
                             <div class="alert alert-secondary text-start small mb-0 py-2">
                                 <i class="fas fa-info-circle me-1 text-primary"></i> Status transaksi akan berubah menjadi
                                 <span class="badge bg-success">Success</span> dan saldo nasabah akan bertambah otomatis.

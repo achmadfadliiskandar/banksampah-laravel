@@ -83,14 +83,27 @@ class TransaksiController extends Controller
 
     public function update(Request $request, $id)
     {
-        // 1. Validasi Input Data Array Berpasangan
+        // Hitung batas tanggal minimal (2 hari yang lalu jam 00:00:00) dan batas maksimal (hari ini)
+        $minDate = Carbon::now()->subDays(2)->startOfDay()->toDateString();
+        $maxDate = Carbon::now()->endOfDay()->toDateString();
+
+        // 1. Validasi Input Data Array Berpasangan & Tanggal Setoran
         $request->validate([
+            'tanggal_setoran' => [
+                'required',
+                'date',
+                'after_or_equal:' . $minDate,
+                'before_or_equal:' . $maxDate,
+            ],
             'detail_id'     => 'required|array',
-            'detail_id.*'   => 'required|exists:detail_setorans,id', // Ganti nama tabel anak jika berbeda
+            'detail_id.*'   => 'required|exists:detail_setorans,id',
             'kategori_id'   => 'required|array',
             'kategori_id.*' => 'required|exists:kategori_sampahs,id',
             'berat'         => 'required|array',
             'berat.*'       => 'required|numeric|min:0.01',
+        ], [
+            'tanggal_setoran.after_or_equal'  => 'Tanggal setoran tidak boleh lebih dari 2 hari yang lalu!',
+            'tanggal_setoran.before_or_equal' => 'Tanggal setoran tidak boleh memilih tanggal masa depan!',
         ]);
 
         DB::beginTransaction();
@@ -122,7 +135,6 @@ class TransaksiController extends Controller
                 $detail->kategori_id = $katId;
                 $detail->berat       = $beratAktual;    // Menyimpan format decimal(8,2)
                 $detail->subtotal    = $subtotalBaru;   // Menyimpan format decimal(12,2)
-                // Catatan: path_foto tidak diubah/dihapus karena fungsi ini hanya melakukan koreksi timbangan fisik lokasi
                 $detail->save();
 
                 // Akumulasikan nilai baru
@@ -130,20 +142,24 @@ class TransaksiController extends Controller
                 $baruTotalBerat += $beratAktual;
             }
 
-            // 4. Update Kembali Data Akumulasi Akhir di Tabel Induk Transaksi
+            // 4. Update Kembali Data Akumulasi Akhir & Tanggal di Tabel Induk Transaksi
+            // Menjaga jam & detik asli transaksi, hanya mengubah bagian tanggal (Y-m-d)
+            $jamDetikAsli = $setoran->created_at->format('H:i:s');
+            $waktuBaru    = Carbon::parse($request->tanggal_setoran . ' ' . $jamDetikAsli);
+
             $setoran->total_harga = $baruTotalHarga;
             $setoran->total_berat = $baruTotalBerat;
+            $setoran->created_at  = $waktuBaru; // Update tanggal transaksi sesuai input admin
             $setoran->save();
 
-            // 5. 🔥 LOGIKA UTAMA: REKALKULASI SALDO REKENING NASABAH
-            // Rumus: Saldo Sekarang dikurangi Total Lama (Reset ke awal), lalu ditambah Total Baru yang Valid
+            // 5. LOGIKA UTAMA: REKALKULASI SALDO REKENING NASABAH
             if ($setoran->status == 'success') {
                 $nasabah->saldo = ($nasabah->saldo - $totalHargaLama) + $baruTotalHarga;
                 $nasabah->save();
             }
 
             DB::commit();
-            return redirect()->back()->with('success', 'Data transaksi ' . $setoran->kode_transaksi . ' berhasil dikoreksi! Saldo nasabah otomatis disesuaikan.');
+            return redirect()->back()->with('success', 'Data transaksi ' . $setoran->kode_transaksi . ' berhasil dikoreksi! Tanggal & saldo nasabah otomatis disesuaikan.');
 
         } catch (\Exception $e) {
             DB::rollBack();
